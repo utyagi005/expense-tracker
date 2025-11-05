@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Expense Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0e1116;
+      --text: #e8eef9;
+      --muted: #9fb1d1;
+      --card: #121a28;
+      --accent: #6aa6ff;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap { max-width: 840px; margin: 32px auto; padding: 0 16px; }
+    h1 { margin: 0 0 6px; }
+    .sub { color: var(--muted); margin: 0 0 18px; }
+    .row { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px; }
+    .card {
+      background: linear-gradient(180deg, #192132, #0e1420);
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .3);
+    }
+    input, select, button {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, .1);
+      background: #0b1321;
+      color: #cfe1ff;
+    }
+    button {
+      background: #142138;
+      border-color: #24324d;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:hover { outline: 0 0 0 3px rgba(106, 166, 255, .25); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    th, td { padding: 10px; border-bottom: 1px solid rgba(255, 255, 255, .07); }
+    th { color: var(--muted); text-align: left; }
+    .right { text-align: right; }
+    .muted { color: var(--muted); }
+    .totals { display: flex; gap: 16px; flex-wrap: wrap; }
+    .pill {
+      background: #0b1321;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 999px;
+      padding: 8px 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <h1>Expense Tracker</h1>
+    <p class="sub">Track income & expenses with local persistence (no backend required).</p>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="row">
+        <input id="desc" placeholder="Description">
+        <input id="amt" type="number" step="0.01" placeholder="Amount">
+        <select id="type">
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+        <button id="add">Add</button>
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <input id="search" placeholder="Search description..." style="flex:1">
+        <select id="filter">
+          <option value="all">All</option>
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+        <button id="clear">Clear All</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="totals">
+        <div class="pill">Income: <span id="sumIn">0.00</span></div>
+        <div class="pill">Expense: <span id="sumOut">0.00</span></div>
+        <div class="pill">Balance: <span id="balance">0.00</span></div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th class="right">Amount</th>
+            <th>Type</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const rows = document.getElementById('rows');
+    const desc = document.getElementById('desc');
+    const amt = document.getElementById('amt');
+    const type = document.getElementById('type');
+    const addBtn = document.getElementById('add');
+    const search = document.getElementById('search');
+    const filter = document.getElementById('filter');
+    const clearBtn = document.getElementById('clear');
+    const sumIn = document.getElementById('sumIn');
+    const sumOut = document.getElementById('sumOut');
+    const balance = document.getElementById('balance');
+
+    let data = JSON.parse(localStorage.getItem('ut_expenses') || '[]');
+
+    function save() { localStorage.setItem('ut_expenses', JSON.stringify(data)); }
+    function fmt(n) { return (+n).toFixed(2); }
+
+    function render() {
+      const q = search.value.toLowerCase();
+      const f = filter.value;
+      rows.innerHTML = '';
+      let inc = 0, out = 0;
+
+      data.forEach((r, i) => {
+        if (q && !r.desc.toLowerCase().includes(q)) return;
+        if (f !== 'all' && r.type !== f) return;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.desc}</td>
+          <td class="right">${fmt(r.amount)}</td>
+          <td class="muted">${r.type}</td>
+          <td class="right"><button data-del="${i}">✕</button></td>`;
+        rows.appendChild(tr);
+        if (r.type === 'income') inc += +r.amount; else out += +r.amount;
+      });
+
+      sumIn.textContent = fmt(inc);
+      sumOut.textContent = fmt(out);
+      balance.textContent = fmt(inc - out);
+    }
+
+    // CSV Export
+    const exportBtn = document.createElement('button');
+    exportBtn.textContent = 'Export CSV';
+    exportBtn.style.marginTop = '8px';
+    document.querySelector('.card').appendChild(exportBtn);
+
+    exportBtn.onclick = () => {
+      if (!data.length) return alert('No transactions to export.');
+      let csv = 'Description,Amount,Type\n';
+      data.forEach(r => csv += `${r.desc},${r.amount},${r.type}\n`);
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'expenses.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    addBtn.onclick = () => {
+      if (!desc.value.trim() || !amt.value) return;
+      data.push({ desc: desc.value.trim(), amount: +amt.value, type: type.value, ts: Date.now() });
+      desc.value = ''; amt.value = ''; type.value = 'income';
+      save(); render();
+    };
+
+    rows.onclick = (e) => {
+      if (e.target.dataset.del) {
+        data.splice(+e.target.dataset.del, 1);
+        save(); render();
+      }
+    };
+
+    search.oninput = render;
+    filter.onchange = render;
+    clearBtn.onclick = () => {
+      if (confirm('Clear all entries?')) {
+        data = [];
+        save();
+        render();
+      }
+    };
+
+    render();
+  </script>
+</body>
+</html>
